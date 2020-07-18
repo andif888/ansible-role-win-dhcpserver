@@ -1,0 +1,22 @@
+---
+# defaults file for ansible-role-win-dhcpserver
+win_dhcp_server_authorize_in_dc: true
+
+# win_dhcp_server_scopes:
+#   - { name: 'DefaultScope', startrange: '192.168.222.1', endrange: '192.168.222.254', subnetmask: '255.255.255.0' }
+
+# optionid: 3 => router
+# optionid: 6 => DNS Servers
+# optionid: 15 => DNS Domain Name
+
+# win_dhcp_server_scope_options:
+#   - { computername: '', scopeid: '192.168.222.0', optionid: 3, value: '192.168.222.1' }
+#   - { computername: '', scopeid: '192.168.222.0', optionid: 6, value: '192.168.222.10' }
+#   - { computername: '', scopeid: '192.168.222.0', optionid: 15, value: 'lab.controlup.eu' }
+
+# win_dhcp_server_exclusion_ranges:
+#   - { scopeid: '192.168.222.0', startrange: '192.168.222.1', endrange: '192.168.222.99' }
+#   - { scopeid: '192.168.222.0', startrange: '192.168.222.200', endrange: '192.168.222.254' }
+
+# win_dhcp_server_reservations:
+#   - { name: 'lab15', description: 'lab15', scopeid: '192.168.222.0', ip: '192.168.222.165', clientid: 'F0-DE-F1-7A-00-5E'}

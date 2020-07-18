@@ -1,0 +1,98 @@
+---
+# tasks file for ansible-role-win-dhcpserver
+- name: Windows DHCP Server - Install Windows Feature
+  win_feature:
+    name: DHCP
+    state: present
+    include_management_tools: yes
+  register: win_feature
+  when:
+    - ansible_facts['distribution'] is search('Windows Server')
+
+- name: Windows DHCP Server - reboot if feature requires it
+  win_reboot:
+  when: win_feature.reboot_required|default(false)
+
+- name: Windows DHCP Server - DHCP security groups
+  win_shell: |
+    netsh dhcp add securitygroups
+  register: netsh_dhcp_securitygroups
+
+- debug:
+    var: netsh_dhcp_securitygroups.stdout
+
+- name: Windows DHCP Server - Restart DHCP
+  win_service:
+    name: dhcpserver
+    state: restarted
+
+- name: Windows DHCP Server - is authorized
+  win_shell: |
+    $is_authorized = $false
+    $authorized_result = Get-DhcpServerInDC
+    if ($authorized_result) {
+        $is_authorized = $true
+    }
+    Write-Host $is_authorized
+  register: dhcp_is_authorized
+  changed_when: False
+
+- name: Windows DHCP Server - authorize
+  win_shell: |
+    Add-DhcpServerInDC
+  when: 
+    - win_dhcp_server_authorize_in_dc
+    - dhcp_is_authorized is defined
+    - dhcp_is_authorized.stdout is match("False*")
+
+- name: Windows DHCP Server - unauthorize
+  win_shell: |
+    Remove-DhcpServerInDC
+  when: 
+    - not win_dhcp_server_authorize_in_dc
+    - dhcp_is_authorized is defined
+    - dhcp_is_authorized.stdout is match("True*")
+    
+
+- name: Windows DHCP Server - set configuration complete registy
+  win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\ServerManager\Roles\12
+    name: ConfigurationState
+    data: 2
+    type: dword
+    state: present
+
+- name: Windows DHCP Server - Scopes
+  win_shell: |
+    if (-not (Get-DhcpServerv4Scope | ? { $_.Name -eq '{{ item.name }}' })) {
+      Add-DhcpServerv4Scope -name "{{ item.name }}" -StartRange {{ item.startrange }} -EndRange {{ item.endrange }} -SubnetMask {{ item.subnetmask }} -State Active
+    }
+  with_items: '{{ win_dhcp_server_scopes }}'
+  when: 
+    - win_dhcp_server_scopes is defined
+
+- name: Windows DHCP Server - Scope options
+  win_shell: |
+    Set-DhcpServerv4OptionValue -ScopeId {{ item.scopeid }} -OptionId {{ item.optionid }} -Value "{{ item.value }}"
+  with_items: '{{ win_dhcp_server_scope_options }}'
+  when: win_dhcp_server_scope_options is defined
+
+- name: Windows DHCP Server - Exclusion Range 
+  win_shell: |
+    if (-not (Get-DhcpServerv4ExclusionRange -ScopeId {{ item.scopeid }} | ? { $_.StartRange -eq '{{ item.startrange }}' } )) {
+        Add-DhcpServerv4ExclusionRange -ScopeID {{ item.scopeid}} -StartRange {{ item.startrange}} -EndRange {{ item.endrange }}
+    }    
+  with_items: '{{ win_dhcp_server_exclusion_ranges }}'
+  when: 
+    - win_dhcp_server_exclusion_ranges is defined
+
+- name: Windows DHCP Server - Reservation 
+  win_shell: |
+    if (-not (Get-DhcpServerv4Reservation -ScopeId {{ item.scopeid }} | ? { $_.IPAddress -eq '{{ item.ip }}' } )) {
+        Add-DhcpServerv4Reservation -Name "{{ item.name }}" -ScopeID {{ item.scopeid}} -IPAddress {{ item.ip}} -ClientId "{{ item.clientid }}" -Description "{{ item.description }}" 
+    }    
+  with_items: '{{ win_dhcp_server_reservations }}'
+  when: 
+    - win_dhcp_server_reservations is defined
+
+
